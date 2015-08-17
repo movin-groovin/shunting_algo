@@ -1,5 +1,5 @@
 
-// g++ -std=c++11 chunting.cpp -o chunt
+// g++ -std=c++11 shunting.cpp -o shunt
 
 #include <iostream>
 #include <string>
@@ -13,6 +13,7 @@
 #include <stdexcept>
 
 #include <cmath>
+#include <cassert>
 
 
 
@@ -43,7 +44,6 @@ namespace tokens {
 	bool is_space(char ch) {
 		return ch == ' ';
 	}
-
 
 	typedef struct _TOKEN {
 		token_type type;
@@ -218,14 +218,98 @@ namespace schunting {
 		return;
 	}
 	
+	template <typename T>
+	struct NEW_TOKEN {
+		tokens::token_type type;
+		std::string val;
+		T dig_val;
+		
+		NEW_TOKEN (tokens::token_type t, const std::string & s, T d_val): type(t), val(s), dig_val(d_val) {}
+		NEW_TOKEN (const NEW_TOKEN & t_ref): type(t_ref.type), val(t_ref.val), dig_val(t_ref.dig_val) {}
+	};
 	
 	template <typename T>
 	T CalculateRPN (std::deque<tokens::TOKEN> && q) {
 		std::deque<tokens::TOKEN> toks(q);
+		std::stack<NEW_TOKEN<T> > s_calcs;
 		
-		;
+		while (!toks.empty()) {
+			tokens::TOKEN t(toks.front());
+			toks.pop_front();
+			
+			assert(t.type == tokens::operand || t.type == tokens::delimeter || t.type == tokens::function);
+			
+			if (t.type == tokens::operand) {
+				T tmp;
+				std::istringstream iss(t.val);
+				iss >> tmp;
+				s_calcs.push(NEW_TOKEN<T>(t.type, t.val, tmp));
+			}
+			else if (t.type == tokens::delimeter) {
+				if (s_calcs.empty())
+					throw std::runtime_error("Incorrect RPN note");
+				NEW_TOKEN<T> t1(s_calcs.top());
+				s_calcs.pop();
+				
+				if (s_calcs.empty())
+					throw std::runtime_error("Incorrect RPN note");
+				NEW_TOKEN<T> t2(s_calcs.top());
+				s_calcs.pop();
+				
+				assert(t1.type == t2.type == tokens::operand);
+				
+				if (t.val == "+") {
+					s_calcs.push(NEW_TOKEN<T>(t1.type, "", t1.dig_val + t2.dig_val));
+				}
+				else if (t.val == "-") {
+					s_calcs.push(NEW_TOKEN<T>(t1.type, "", t1.dig_val - t2.dig_val));
+				}
+				else if (t.val == "*") {
+					s_calcs.push(NEW_TOKEN<T>(t1.type, "", t1.dig_val * t2.dig_val));
+				}
+				else if (t.val == "/") {
+					s_calcs.push(NEW_TOKEN<T>(t1.type, "", t1.dig_val / t2.dig_val));
+				}
+				//
+			}
+			else { // function
+				if (t.val == "pow") {
+					if (s_calcs.empty())
+						throw std::runtime_error("Incorrect RPN note");
+					NEW_TOKEN<T> t1(s_calcs.top());
+					s_calcs.pop();
+					
+					if (s_calcs.empty())
+						throw std::runtime_error("Incorrect RPN note");
+					NEW_TOKEN<T> t2(s_calcs.top());
+					s_calcs.pop();
+					
+					assert(t1.type == t2.type == tokens::operand);
+					
+					s_calcs.push( NEW_TOKEN<T>( t1.type, "", std::pow(t1.dig_val, t2.dig_val) ) );
+				}
+				else {
+					if (s_calcs.empty())
+						throw std::runtime_error("Incorrect RPN note");
+					NEW_TOKEN<T> t1(s_calcs.top());
+					s_calcs.pop();
+					
+					assert(t1.type == tokens::operand);
+					
+					if (t.val == "abs")
+						s_calcs.push( NEW_TOKEN<T>( t1.type, "", std::abs(t1.dig_val) ) );
+					else if (t.val == "sin")
+						s_calcs.push( NEW_TOKEN<T>( t1.type, "", std::sin(t1.dig_val) ) );
+					else if (t.val == "cos")
+						s_calcs.push( NEW_TOKEN<T>( t1.type, "", std::cos(t1.dig_val) ) );
+					//
+				}
+				//
+			}
+			//
+		}
 		
-		return T();
+		return s_calcs.top().dig_val;
 	}
 	
 }
@@ -247,7 +331,7 @@ int main () {
 	*/
 	try {
 		schunting::CSchuntingAlgo chnt(toks.GetTokens());
-		std::cout << "Results: " << schunting::CalculateRPN<long long> (chnt.GetResults()) << std::endl;
+		//std::cout << "Results: " << schunting::CalculateRPN<long long> (chnt.GetResults()) << std::endl;
 	} catch (std::exception & Exc) {
 		std::cout << "Have caught an exception: " << Exc.what() << "\n";
 		return 1001;
