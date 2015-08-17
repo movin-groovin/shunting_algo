@@ -140,8 +140,7 @@ namespace schunting {
 			return t.val == std::string(1, ')');
 		}
 		virtual int GetPriority(const tokens::TOKEN & t) const { // now we think, that all our operators are left associative
-			std::string op(1, t.val);
-			return (op == "+" || op == "-") ? 1 : 2; // "+-" - 1; "*/" - 2
+			return (t.val == "+" || t.val == "-") ? 1 : 2; // "+-" - 1; "*/" - 2
 		}
 		
 		std::deque<tokens::TOKEN> GetResults() const {
@@ -166,7 +165,7 @@ namespace schunting {
 				m_queue.push_back(tok);
 			}
 			else if (IsFunction(tok)) {
-				m_stack.push_back(tok);
+				m_stack.push(tok);
 			}
 			else if (IsSeparator(tok)) {
 				while (!IsOpenBracket(m_stack.top())) {
@@ -175,7 +174,7 @@ namespace schunting {
 				}
 				
 				if (m_stack.empty())
-					throw std::runtime_error("Parse error: is absent func parameter separator (',') or open bracket");
+					throw std::runtime_error("Parse error: is absent func parameter separator (',') or open bracket ('(')");
 			}
 			else if (IsOperator(tok)) {
 				while (
@@ -192,13 +191,28 @@ namespace schunting {
 				m_stack.push(tok);
 			}
 			else if (IsCloseBracket(tok)) {
-				;
+				while(!m_stack.empty() && !IsOpenBracket(m_stack.top())) {
+					m_queue.push_back(m_stack.top());
+					m_stack.pop();
+				}
+				
+				if (m_stack.empty())
+					throw std::runtime_error("Parse error: is absent opening bracket ('(')");
+					
+				m_stack.pop();
+				if (!m_stack.empty() && IsFunction(m_stack.top())) {
+					m_queue.push_back(m_stack.top());
+					m_stack.pop();
+				}
 			}
 			//
 		}
 		
 		while(!m_stack.empty()) {
-			
+			if (IsOpenBracket(m_stack.top()))
+				throw std::runtime_error("Parse error: is absent closing bracket (')')");
+			m_queue.push_back(m_stack.top());
+			m_stack.pop();
 		}
 		
 		return;
