@@ -11,6 +11,7 @@
 #include <stack>
 #include <sstream>
 #include <stdexcept>
+#include <iterator>
 
 #include <cmath>
 #include <cassert>
@@ -121,25 +122,32 @@ namespace schunting {
 		virtual ~CSchuntingAlgo () {}
 		
 		virtual bool IsInteger(const tokens::TOKEN & t) const  {
+			assert(!t.val.empty());
 			return tokens::is_digit(t.val);
 		}
 		virtual bool IsFunction(const tokens::TOKEN & t) const  {
+			assert(!t.val.empty());
 			return t.type == tokens::function;
 		}
 		virtual bool IsSeparator(const tokens::TOKEN & t) const  {
+			assert(!t.val.empty());
 			return t.val == std::string(1, ',');
 		}
 		virtual bool IsOperator(const tokens::TOKEN & t) const  {
+			assert(!t.val.empty());
 			std::string ops ("+-*/");
 			return ops.find(t.val[0]) != ops.npos;
 		}
 		virtual bool IsOpenBracket(const tokens::TOKEN & t) const  {
+			assert(!t.val.empty());
 			return t.val == std::string(1, '(');
 		}
 		virtual bool IsCloseBracket(const tokens::TOKEN & t) const  {
+			assert(!t.val.empty());
 			return t.val == std::string(1, ')');
 		}
 		virtual int GetPriority(const tokens::TOKEN & t) const { // now we think, that all our operators are left associative
+			assert(!t.val.empty());
 			return (t.val == "+" || t.val == "-") ? 1 : 2; // "+-" - 1; "*/" - 2
 		}
 		
@@ -178,6 +186,7 @@ namespace schunting {
 			}
 			else if (IsOperator(tok)) {
 				while (
+					!m_stack.empty() &&
 					IsOperator(m_stack.top()) &&
 					(GetPriority(tok) <= GetPriority(m_stack.top()))
 				) {
@@ -226,6 +235,12 @@ namespace schunting {
 		
 		NEW_TOKEN (tokens::token_type t, const std::string & s, T d_val): type(t), val(s), dig_val(d_val) {}
 		NEW_TOKEN (const NEW_TOKEN & t_ref): type(t_ref.type), val(t_ref.val), dig_val(t_ref.dig_val) {}
+		
+		void swap(NEW_TOKEN & t) {
+			std::swap(type, t.type);
+			std::swap(val, t.val);
+			std::swap(dig_val, t.dig_val);
+		}
 	};
 	
 	template <typename T>
@@ -256,7 +271,9 @@ namespace schunting {
 				NEW_TOKEN<T> t2(s_calcs.top());
 				s_calcs.pop();
 				
-				assert(t1.type == t2.type == tokens::operand);
+				t1.swap(t2); // change order at moving from queue to stack and pop back
+				
+				assert(t1.type == tokens::operand && t2.type == tokens::operand);
 				
 				if (t.val == "+") {
 					s_calcs.push(NEW_TOKEN<T>(t1.type, "", t1.dig_val + t2.dig_val));
@@ -284,7 +301,9 @@ namespace schunting {
 					NEW_TOKEN<T> t2(s_calcs.top());
 					s_calcs.pop();
 					
-					assert(t1.type == t2.type == tokens::operand);
+					t1.swap(t2); // change order at moving from queue to stack and pop back
+					
+					assert(t1.type == tokens::operand && t2.type == tokens::operand);
 					
 					s_calcs.push( NEW_TOKEN<T>( t1.type, "", std::pow(t1.dig_val, t2.dig_val) ) );
 				}
@@ -315,8 +334,23 @@ namespace schunting {
 }
 
 
-int main () {
+std::string GetData(std::istream & is) {
+	std::string buf;
+	//std::copy(std::istream_iterator<char>(is), std::istream_iterator<char>(), std::back_insert_iterator<std::string>(buf));
+	std::getline(is, buf, '\n');
+	return buf;
+}
+
+
+int main (int argc, char **argv) {
 	std::string cmds = "(1 + pow(3, 4) + (3 -1)*4) / 3";
+	
+	std::cout << "Enter formula: ";
+	cmds = GetData(std::cin);
+#if !defined(NDEBUG)
+	std::cout << "Formula: " << cmds << "\n";
+#endif
+	
 	std::istringstream iss(cmds);
 	tokens::CTokenizer toks (tokens::var_func, tokens::var_delims, iss);
 	
@@ -331,7 +365,7 @@ int main () {
 	*/
 	try {
 		schunting::CSchuntingAlgo chnt(toks.GetTokens());
-		//std::cout << "Results: " << schunting::CalculateRPN<long long> (chnt.GetResults()) << std::endl;
+		std::cout << "Results: " << schunting::CalculateRPN<long long> (chnt.GetResults()) << std::endl;
 	} catch (std::exception & Exc) {
 		std::cout << "Have caught an exception: " << Exc.what() << "\n";
 		return 1001;
